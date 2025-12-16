@@ -1,0 +1,44 @@
+import React from 'react';
+import { Settings, LogOut } from 'lucide-react';
+
+const Header: React.FC = () => {
+  return (
+    // ICI : Changez 'bg-slate-900' par la couleur de votre club (ex: bg-[#MonCodeHexa])
+    <header className="bg-slate-900 text-white shadow-lg print:hidden">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex justify-between items-center h-20">
+          
+          {/* LOGO ET TITRE */}
+          <div className="flex items-center gap-4">
+            <div className="bg-white p-1 rounded-full h-12 w-12 flex items-center justify-center">
+              {/* Le logo ira chercher le fichier dans le dossier public */}
+              <img 
+                src="/logo.png" 
+                alt="Logo Club" 
+                className="h-10 w-10 object-contain" 
+              />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight text-white">
+                PHENIX
+              </h1>
+              <p className="text-xs text-gray-300 font-medium uppercase tracking-wider">
+                Ton coach assistant en prépa physique
+              </p>
+            </div>
+          </div>
+
+          {/* BOUTON OPTIONS (Décoratif pour l'instant) */}
+          <div className="flex items-center gap-2">
+            <button className="p-2 text-gray-300 hover:text-white transition-colors">
+              <Settings className="w-6 h-6" />
+            </button>
+          </div>
+          
+        </div>
+      </div>
+    </header>
+  );
+};
+
+export default Header;
