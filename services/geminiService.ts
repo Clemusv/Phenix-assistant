@@ -1,113 +1,127 @@
-import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
-import { SessionParams, SessionStructure } from "../types";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
-// ⚠️ Assurez-vous que votre NOUVELLE CLÉ est bien ici
-const API_KEY_HARDCODED = "AIzaSyAcDJi2zRIAt3Nl-Ch1KB72U2XL6j-w39w"; 
+// Récupération de la clé depuis le fichier .env
+const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 
-const getApiKey = () => {
-  if (API_KEY_HARDCODED && API_KEY_HARDCODED !== "COLLEZ_VOTRE_NOUVELLE_CLE_ICI") {
-    return API_KEY_HARDCODED;
-  }
-  const key = import.meta.env.VITE_GEMINI_API_KEY || "";
-  if (!key) throw new Error("Clé API manquante.");
-  return key;
+// Fonction de nettoyage de la clé (sécurité)
+const getCleanKey = () => {
+  if (!API_KEY) return "";
+  return API_KEY.replace(/["';\s]/g, "");
 };
 
-// --- SCHÉMAS ---
-const sessionSchema = {
-  type: SchemaType.OBJECT,
-  properties: {
-    warmup: {
-      type: SchemaType.OBJECT,
-      properties: {
-        title: { type: SchemaType.STRING },
-        duration: { type: SchemaType.STRING },
-        steps: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
-        setup: { type: SchemaType.STRING },
-        physiologicalGoal: { type: SchemaType.STRING },
-        coachingPoints: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
-        visualPrompt: { type: SchemaType.STRING, description: "Description géométrique simple." }
-      }
-    },
-    mainPart: {
-      type: SchemaType.ARRAY,
-      items: {
-        type: SchemaType.OBJECT,
-        properties: {
-          title: { type: SchemaType.STRING },
-          duration: { type: SchemaType.STRING },
-          steps: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
-          setup: { type: SchemaType.STRING },
-          physiologicalGoal: { type: SchemaType.STRING },
-          coachingPoints: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
-          visualPrompt: { type: SchemaType.STRING, description: "Description géométrique simple." }
-        }
-      }
-    },
-    conclusion: {
-      type: SchemaType.OBJECT,
-      properties: {
-        title: { type: SchemaType.STRING },
-        duration: { type: SchemaType.STRING },
-        steps: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
-        setup: { type: SchemaType.STRING },
-        physiologicalGoal: { type: SchemaType.STRING },
-        coachingPoints: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
-        visualPrompt: { type: SchemaType.STRING, description: "Description géométrique simple." }
-      }
-    },
-  },
-  required: ["warmup", "mainPart", "conclusion"]
-};
+// --- CONFIGURATION DU MODÈLE ---
+// Basé sur votre liste "Index 4", c'est le modèle fiable pour votre compte.
+const MODEL_NAME = "gemini-2.0-flash"; 
 
-const SYSTEM_INSTRUCTION = `Expert Foot Phynix.
-Format: 1 Echauffement + 2 Ateliers + 1 Conclusion.
-RÈGLE IMPÉRATIVE : SOIS PRÉCIS SUR LES CHIFFRES.`;
+const genAI = new GoogleGenerativeAI(getCleanKey());
 
-// --- FONCTION TEXTE (Génération de la séance) ---
-export const generateSessionContent = async (params: SessionParams): Promise<SessionStructure> => {
+export const generateSessionContent = async (criteria: any) => {
   try {
-    const apiKey = getApiKey();
-    const genAI = new GoogleGenerativeAI(apiKey);
-    
-    // On utilise le modèle stable que vous possédez
-    const model = genAI.getGenerativeModel({
-      model: "gemini-2.5-flash",
-      systemInstruction: SYSTEM_INSTRUCTION,
-    });
+    const cleanKey = getCleanKey();
+    if (!cleanKey) throw new Error("Clé API manquante. Vérifiez votre fichier .env");
 
-    let focusInstruction = params.focusMode === 'problem' && params.problemDescription
-        ? `Corriger le problème : "${params.problemDescription}"`
-        : `Dominance à travailler : ${params.dominance}`;
+    // Initialisation du modèle spécifique
+    const model = genAI.getGenerativeModel({ model: MODEL_NAME });
 
-    const userPrompt = `
-      Séance pour Phénix ${params.category} (${params.playerCount} joueurs).
-      ${focusInstruction}
-      Génère 2 Ateliers Principaux.
+    // Construction du Prompt Expert (Préparateur Physique)
+    const prompt = `
+      Tu es un expert en préparation physique de football (Diplôme FFF).
+      
+      CONTEXTE :
+      - Catégorie : ${criteria.category}
+      - Genre : ${criteria.gender}
+      - Niveau : ${criteria.level}
+      - Effectif : ${criteria.playerCount} joueurs
+      - Type de séance : ${criteria.focusMode === 'dominance' ? 'Développement Qualité' : 'Correction Problème'}
+      - Objectif principal : "${criteria.focusMode === 'dominance' ? criteria.dominance : criteria.problemDescription}"
+
+      MISSION :
+      Génère une séance complète et structurée au format JSON strict.
+
+      RÈGLES D'OR :
+      1. Si U6-U13 : Ludique, gamification, ballon omniprésent.
+      2. Si U14+ : Plus athlétique, rigueur, répétitions.
+      3. Temps de récupération adaptés à la physiologie.
+
+      FORMAT DE RÉPONSE ATTENDU (JSON pur, sans texte autour) :
+      {
+        "diagnosis": {
+          "title": "Analyse de l'expert",
+          "explanation": "Pourquoi on travaille ça aujourd'hui...",
+          "advice": "Conseil clé pour le coach sur le terrain"
+        },
+        "exercises": [
+          {
+            "title": "Nom de l'atelier",
+            "duration": "Durée (ex: 15 min)",
+            "type": "Échauffement / Corps / Jeu",
+            "instructions": "Consignes claires...",
+            "material": "Matériel nécessaire",
+            "intensity": "Faible / Moyenne / Haute"
+          },
+          {
+            "title": "Exercice 2...",
+            "duration": "...",
+            "type": "...",
+            "instructions": "...",
+            "material": "...",
+            "intensity": "..."
+          },
+          {
+            "title": "Exercice 3...",
+            "duration": "...",
+            "type": "...",
+            "instructions": "...",
+            "material": "...",
+            "intensity": "..."
+          },
+          {
+            "title": "Jeu Final / Application",
+            "duration": "...",
+            "type": "Jeu",
+            "instructions": "...",
+            "material": "...",
+            "intensity": "Haute"
+          }
+        ]
+      }
     `;
 
-    const result = await model.generateContent({
-      contents: [{ role: "user", parts: [{ text: userPrompt }] }],
-      generationConfig: {
-        responseMimeType: "application/json",
-        responseSchema: sessionSchema,
-        temperature: 0.5,
-      },
-    });
+    console.log(`📡 Envoi de la demande à ${MODEL_NAME}...`);
 
-    const responseText = result.response.text();
-    if (!responseText) throw new Error("Réponse vide de l'IA");
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    let text = response.text();
+
+    // Nettoyage du JSON (au cas où l'IA ajoute des ```json ... ```)
+    text = text.replace(/```json/g, "").replace(/```/g, "").trim();
+    const start = text.indexOf('{');
+    const end = text.lastIndexOf('}');
+    if (start !== -1 && end !== -1) {
+      text = text.substring(start, end + 1);
+    }
+
+    return JSON.parse(text);
+
+  } catch (error: any) {
+    console.error("❌ Erreur Gemini :", error);
     
-    return JSON.parse(responseText) as SessionStructure;
+    // Gestion des erreurs spécifiques
+    if (error.message?.includes("429")) {
+        throw new Error("Trop de demandes. Attendez une minute.");
+    }
+    if (error.message?.includes("503")) {
+        throw new Error("Les serveurs Google surchauffent. Réessayez dans 30s.");
+    }
+    if (error.message?.includes("not found")) {
+        throw new Error(`Le modèle ${MODEL_NAME} n'est pas activé sur votre clé API.`);
+    }
 
-  } catch (error) {
-    console.error("Gemini Text Error:", error);
-    throw error;
+    throw new Error("Erreur de génération. Vérifiez la console.");
   }
 };
 
-// --- FONCTION IMAGE (Désactivée pour éviter l'erreur de paiement) ---
-export const generateExerciseImage = async (visualPrompt: string, setup: string): Promise<string> => {
-  // On retourne vide pour ne pas bloquer l'application
+// Fonction pour l'image (désactivée pour éviter les erreurs de quota payant)
+export const generateExerciseImage = async (description: string) => {
   return ""; 
 };
