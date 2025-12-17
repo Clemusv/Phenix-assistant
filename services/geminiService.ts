@@ -7,8 +7,9 @@ const getCleanKey = () => {
   return API_KEY.replace(/["';\s]/g, "");
 };
 
-// --- REVENIR AU STANDARD STABLE ---
-const MODEL_NAME = "gemini-1.5-flash";
+// --- CORRECTION FINALE : UTILISATION DE L'ALIAS ---
+// On utilise l'alias générique qui est présent dans votre liste (Index 20)
+const MODEL_NAME = "gemini-flash-latest";
 
 const genAI = new GoogleGenerativeAI(getCleanKey());
 
@@ -100,10 +101,15 @@ export const generateSessionContent = async (criteria: any) => {
   } catch (error: any) {
     console.error("❌ Erreur Gemini :", error);
     
-    if (error.message?.includes("429")) {
-        throw new Error("Trop de demandes (Quota). Attendez une minute.");
+    // Diagnostic précis des erreurs
+    if (error.message?.includes("404")) {
+       throw new Error(`Modèle ${MODEL_NAME} introuvable. Google a changé les noms.`);
     }
-    throw new Error("Erreur de génération. Vérifiez la console.");
+    if (error.message?.includes("429")) {
+        throw new Error("Quota dépassé (Trop d'appels). Réessayez demain ou changez de compte Google.");
+    }
+    
+    throw new Error("Erreur système. Vérifiez la console (F12).");
   }
 };
 
