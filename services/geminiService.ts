@@ -1,17 +1,14 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
-// Récupération de la clé depuis le fichier .env
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 
-// Fonction de nettoyage de la clé (sécurité)
 const getCleanKey = () => {
   if (!API_KEY) return "";
   return API_KEY.replace(/["';\s]/g, "");
 };
 
-// --- CONFIGURATION DU MODÈLE ---
-// Basé sur votre liste "Index 4", c'est le modèle fiable pour votre compte.
-const MODEL_NAME = "gemini-2.0-flash"; 
+// --- REVENIR AU STANDARD STABLE ---
+const MODEL_NAME = "gemini-1.5-flash";
 
 const genAI = new GoogleGenerativeAI(getCleanKey());
 
@@ -20,10 +17,8 @@ export const generateSessionContent = async (criteria: any) => {
     const cleanKey = getCleanKey();
     if (!cleanKey) throw new Error("Clé API manquante. Vérifiez votre fichier .env");
 
-    // Initialisation du modèle spécifique
     const model = genAI.getGenerativeModel({ model: MODEL_NAME });
 
-    // Construction du Prompt Expert (Préparateur Physique)
     const prompt = `
       Tu es un expert en préparation physique de football (Diplôme FFF).
       
@@ -93,7 +88,6 @@ export const generateSessionContent = async (criteria: any) => {
     const response = await result.response;
     let text = response.text();
 
-    // Nettoyage du JSON (au cas où l'IA ajoute des ```json ... ```)
     text = text.replace(/```json/g, "").replace(/```/g, "").trim();
     const start = text.indexOf('{');
     const end = text.lastIndexOf('}');
@@ -106,22 +100,13 @@ export const generateSessionContent = async (criteria: any) => {
   } catch (error: any) {
     console.error("❌ Erreur Gemini :", error);
     
-    // Gestion des erreurs spécifiques
     if (error.message?.includes("429")) {
-        throw new Error("Trop de demandes. Attendez une minute.");
+        throw new Error("Trop de demandes (Quota). Attendez une minute.");
     }
-    if (error.message?.includes("503")) {
-        throw new Error("Les serveurs Google surchauffent. Réessayez dans 30s.");
-    }
-    if (error.message?.includes("not found")) {
-        throw new Error(`Le modèle ${MODEL_NAME} n'est pas activé sur votre clé API.`);
-    }
-
     throw new Error("Erreur de génération. Vérifiez la console.");
   }
 };
 
-// Fonction pour l'image (désactivée pour éviter les erreurs de quota payant)
 export const generateExerciseImage = async (description: string) => {
   return ""; 
 };
