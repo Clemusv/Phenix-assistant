@@ -11,7 +11,7 @@ const AuthGuard: React.FC<AuthGuardProps> = ({ children }) => {
   const [error, setError] = useState(false);
 
   // Le mot de passe de ton club (à changer ici)
-  const CLUB_PASSWORD = "PHENIX_ELITE_2024"; 
+  const CLUB_PASSWORD = "PHENIX_ELITE_2025"; 
 
   // Vérifier si déjà connecté précédemment (session navigateur)
   useEffect(() => {
