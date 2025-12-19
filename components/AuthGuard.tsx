@@ -1,81 +1,61 @@
 import React, { useState, useEffect } from 'react';
-import { Lock, ShieldCheck, ArrowRight } from 'lucide-react';
+import { auth } from '../services/firebase';
+import { signInWithEmailAndPassword, onAuthStateChanged, User } from 'firebase/auth';
+import { Lock, Mail, ShieldCheck, Loader2 } from 'lucide-react';
 
-interface AuthGuardProps {
-  children: React.ReactNode;
-}
-
-const AuthGuard: React.FC<AuthGuardProps> = ({ children }) => {
+const AuthGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [error, setError] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  // Le mot de passe de ton club (à changer ici)
-  const CLUB_PASSWORD = "PHENIX_ELITE_2025"; 
-
-  // Vérifier si déjà connecté précédemment (session navigateur)
   useEffect(() => {
-    const authStatus = sessionStorage.getItem('isCoachAuthenticated');
-    if (authStatus === 'true') {
-      setIsAuthenticated(true);
-    }
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      setLoading(false);
+    });
+    return () => unsubscribe();
   }, []);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (password === CLUB_PASSWORD) {
-      setIsAuthenticated(true);
-      setError(false);
-      sessionStorage.setItem('isCoachAuthenticated', 'true');
-    } else {
-      setError(true);
-      setPassword('');
+    try {
+      setError('');
+      await signInWithEmailAndPassword(auth, email, password);
+    } catch (err) {
+      setError("Identifiants incorrects ou accès non autorisé.");
     }
   };
 
-  if (isAuthenticated) {
-    return <>{children}</>;
-  }
+  if (loading) return <div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin" /></div>;
+  if (user) return <>{children}</>;
 
   return (
     <div className="min-h-screen bg-slate-900 flex items-center justify-center px-4">
-      <div className="max-w-md w-full bg-white rounded-2xl shadow-2xl overflow-hidden">
-        <div className="bg-[#FFD700] p-8 text-center">
-          <div className="bg-slate-900 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
+      <div className="max-w-md w-full bg-white rounded-2xl shadow-2xl p-8">
+        <div className="text-center mb-8">
+          <div className="bg-slate-900 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
             <ShieldCheck className="text-[#FFD700] w-8 h-8" />
           </div>
-          <h2 className="text-2xl font-bold text-slate-900">Accès Coachs Phenix</h2>
-          <p className="text-slate-700 text-sm mt-2 font-medium">Veuillez entrer le code secret du club</p>
+          <h2 className="text-2xl font-bold text-slate-900">Connexion Coach</h2>
         </div>
         
-        <form onSubmit={handleLogin} className="p-8 space-y-6">
-          <div>
-            <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Code d'accès</label>
-            <div className="relative">
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                className={`w-full pl-10 pr-4 py-3 border rounded-xl outline-none transition-all ${
-                  error ? 'border-red-500 bg-red-50' : 'border-slate-200 focus:border-[#FFD700] focus:ring-2 focus:ring-yellow-100'
-                }`}
-              />
-              <Lock className="absolute left-3 top-3.5 w-4 h-4 text-slate-400" />
-            </div>
-            {error && <p className="text-red-500 text-xs mt-2 font-medium italic">Code incorrect. Veuillez réessayer.</p>}
+        <form onSubmit={handleLogin} className="space-y-4">
+          <div className="relative">
+            <Mail className="absolute left-3 top-3.5 w-4 h-4 text-slate-400" />
+            <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)}
+              className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-yellow-100" required />
           </div>
-
-          <button
-            type="submit"
-            className="w-full bg-slate-900 text-white py-4 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-slate-800 transition-all active:scale-[0.98]"
-          >
-            DÉVERROUILLER L'ACCÈS <ArrowRight className="w-4 h-4" />
+          <div className="relative">
+            <Lock className="absolute left-3 top-3.5 w-4 h-4 text-slate-400" />
+            <input type="password" placeholder="Mot de passe" value={password} onChange={(e) => setPassword(e.target.value)}
+              className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-yellow-100" required />
+          </div>
+          {error && <p className="text-red-500 text-xs italic">{error}</p>}
+          <button type="submit" className="w-full bg-slate-900 text-white py-4 rounded-xl font-bold hover:bg-slate-800 transition-all">
+            SE CONNECTER
           </button>
-          
-          <p className="text-center text-slate-400 text-[10px] uppercase tracking-widest">
-            Système de Sécurité Phénix v3.0
-          </p>
         </form>
       </div>
     </div>
