@@ -1,0 +1,1241 @@
+This file is a merged representation of the entire codebase, combined into a single document by Repomix.
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of the entire repository's contents.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files (if enabled)
+5. Multiple file entries, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+</file_summary>
+
+<directory_structure>
+components/
+  Header.tsx
+  InputForm.tsx
+  SessionView.tsx
+services/
+  geminiService.ts
+.gitignore
+App.tsx
+index.html
+index.tsx
+logo.png
+manifest.json
+metadata.json
+package.json
+projet_complet.txt
+README.md
+test-models.js
+tsconfig.json
+types.ts
+vite.config.ts
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path="components/InputForm.tsx">
+import React, { useState, useEffect } from 'react';
+import { SessionParams } from '../types';
+import { Loader2, Zap, BookOpen, Clock, Activity, Users, Settings, Lock, Unlock, User, Flame, CalendarDays, Info, BrainCircuit, Target, Dumbbell } from 'lucide-react';
+
+interface InputFormProps {
+  onSubmit: (params: SessionParams) => void;
+  isLoading: boolean;
+}
+
+// Options
+const CATEGORIES = ["U9", "U10", "U11", "U12", "U13", "U14", "U15", "U16", "U17", "Senior"];
+const GENDERS = ["M", "F"];
+const LEVELS = ["Élite", "D1", "D2", "D3"];
+const CYCLES = ["Avant-saison", "Saison", "Régénération"];
+
+const DOMINANCE_DEFINITIONS: Record<string, string> = {
+  "Vitesse": "Fréquence gestuelle (jeunes) ou Vitesse Max/Explosivité (adultes).",
+  "Endurance Puissance": "Puissance Aérobie (VMA), Répétition des efforts intenses.",
+  "Endurance Aérobie": "Capacité aérobie fondamentale, endurance de base.",
+  "Force": "Renforcement musculaire (Poids de corps ou Charge selon âge).",
+  "Coordination": "Psychocinétique, échelle de rythme, agilité, maitrise corporelle.",
+  "Vivacité": "Appuis brefs, changements de direction, réaction.",
+  "Souplesse": "Mobilité articulaire et étirements actifs.",
+  "Prévention": "Proprioception, renforcement prophylactique."
+};
+
+// Logique de Priorité basée sur le graphique "Périodes Sensibles"
+const getPriorities = (category: string) => {
+  const cat = category.replace("U", "");
+  const age = cat === "Senior" ? 20 : parseInt(cat);
+
+  // 9-13 ANS : Âge d'Or de la Motricité & Vitesse
+  if (age <= 13) {
+    return {
+      priority: ["Coordination", "Vitesse", "Vivacité", "Souplesse"],
+      secondary: ["Endurance Aérobie"],
+      other: ["Force", "Endurance Puissance", "Prévention"]
+    };
+  }
+  
+  // 13-16 ANS : Pic de Croissance (Aérobie & Fragilité)
+  if (age > 13 && age <= 16) {
+    return {
+      priority: ["Endurance Aérobie", "Souplesse", "Prévention"], // Aérobie monte, Souplesse critique (os > muscle)
+      secondary: ["Vitesse", "Coordination", "Vivacité"], // Maintenance car perte de repères corporels
+      other: ["Force", "Endurance Puissance"] // Attention danger charges lourdes
+    };
+  }
+
+  // 16-20+ ANS : Adulte (Force & Puissance)
+  return {
+    priority: ["Force", "Endurance Puissance", "Vitesse"],
+    secondary: ["Vivacité", "Prévention", "Endurance Aérobie"],
+    other: ["Coordination", "Souplesse"]
+  };
+};
+
+const LOADING_MESSAGES = [
+  "Analyse de l'âge biologique et des fenêtres de développement...",
+  "Sélection des ateliers physiques adaptés...",
+  "Calibrage des temps de repos et d'effort...",
+  "Vérification des contraintes physiologiques...",
+  "Génération des schémas d'entraînement..."
+];
+
+const InputForm: React.FC<InputFormProps> = ({ onSubmit, isLoading }) => {
+  const [params, setParams] = useState<SessionParams>({
+    category: 'Senior',
+    gender: 'M',
+    level: 'D1',
+    focusMode: 'dominance',
+    dominance: 'Endurance Puissance', // Sera mis à jour dynamiquement
+    problemDescription: '',
+    cycleMoment: 'Saison',
+    playerCount: 18,
+    references: 'Une saison de préparation physique en football, De l\'entraînement à la performance, FIFA 11+',
+    sessionsPerWeek: 2,
+    sessionNumber: 1
+  });
+
+  const [priorities, setPriorities] = useState(getPriorities('Senior'));
+  const [isAdminMode, setIsAdminMode] = useState(false);
+  const [passwordInput, setPasswordInput] = useState("");
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [loadingStep, setLoadingStep] = useState(0);
+
+  // Mise à jour des priorités quand la catégorie change
+  useEffect(() => {
+    const newPriorities = getPriorities(params.category);
+    setPriorities(newPriorities);
+    
+    // Auto-sélectionner la première priorité pour guider l'utilisateur
+    if (params.focusMode === 'dominance') {
+       const currentIsPriority = newPriorities.priority.includes(params.dominance);
+       const currentIsSecondary = newPriorities.secondary.includes(params.dominance);
+       
+       if (!currentIsPriority && !currentIsSecondary) {
+         setParams(prev => ({ ...prev, dominance: newPriorities.priority[0] }));
+       }
+    }
+  }, [params.category, params.focusMode]);
+
+  useEffect(() => {
+    if (params.sessionNumber > params.sessionsPerWeek) {
+      setParams(prev => ({ ...prev, sessionNumber: prev.sessionsPerWeek }));
+    }
+  }, [params.sessionsPerWeek, params.sessionNumber]);
+
+  useEffect(() => {
+    let interval: ReturnType<typeof setInterval>;
+    if (isLoading) {
+      setLoadingStep(0);
+      interval = setInterval(() => {
+        setLoadingStep((prev) => (prev + 1) % LOADING_MESSAGES.length);
+      }, 3000);
+    }
+    return () => clearInterval(interval);
+  }, [isLoading]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setParams(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setParams(prev => ({ ...prev, [name]: parseInt(value) || 1 }));
+  };
+
+  const handlePlayerCountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setParams(prev => ({ ...prev, playerCount: parseInt(e.target.value) }));
+  };
+
+  const handleModeChange = (mode: 'dominance' | 'problem') => {
+    setParams(prev => ({ ...prev, focusMode: mode }));
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSubmit(params);
+  };
+
+  const toggleAdminMode = () => {
+    if (isAdminMode) {
+      setIsAdminMode(false);
+      setIsAuthenticated(false);
+      setPasswordInput("");
+    } else {
+      setIsAdminMode(true);
+    }
+  };
+
+  const handleLogin = () => {
+    if (passwordInput === "club1234") {
+      setIsAuthenticated(true);
+    } else {
+      alert("Mot de passe incorrect");
+    }
+  };
+
+  return (
+    <div className="bg-white rounded-xl shadow-lg border border-slate-200 overflow-hidden">
+      
+      {/* En-tête (Noir Phenix avec icône Jaune) */}
+      <div className="bg-slate-900 px-6 py-4 border-b border-[#FFD700] flex justify-between items-center">
+        <div className="flex items-center gap-2">
+          <Settings className="text-[#FFD700] w-5 h-5" />
+          <h2 className="text-white font-semibold text-lg">Paramètres Phenix</h2>
+        </div>
+        <button 
+          onClick={toggleAdminMode}
+          className={`flex items-center gap-1 text-xs px-2 py-1 rounded transition-colors ${isAdminMode ? 'bg-[#FFD700] text-slate-900 font-bold' : 'text-slate-400 hover:text-white'}`}
+        >
+          {isAdminMode ? <Settings className="w-3 h-3" /> : <Lock className="w-3 h-3" />}
+          {isAdminMode ? 'Admin' : 'Admin'}
+        </button>
+      </div>
+      
+      <form onSubmit={handleSubmit} className="p-6 space-y-5">
+        
+        {/* SECTION 1 : PUBLIC */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-slate-800 flex items-center gap-2">
+              <Users className="w-4 h-4 text-[#FFD700]" /> Catégorie
+            </label>
+            <div className="flex gap-2">
+              <select
+                name="category"
+                value={params.category}
+                onChange={handleChange}
+                className="w-2/3 px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-yellow-400 text-slate-800 bg-white"
+              >
+                {CATEGORIES.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+              </select>
+              <select
+                name="gender"
+                value={params.gender}
+                onChange={handleChange}
+                className="w-1/3 px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-yellow-400 text-slate-800 bg-white"
+              >
+                {GENDERS.map(g => <option key={g} value={g}>{g}</option>)}
+              </select>
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-slate-800 flex items-center gap-2">
+              <Activity className="w-4 h-4 text-[#FFD700]" /> Niveau
+            </label>
+            <select
+              name="level"
+              value={params.level}
+              onChange={handleChange}
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-yellow-400 text-slate-800 bg-white"
+            >
+               {LEVELS.map(lvl => <option key={lvl} value={lvl}>{lvl}</option>)}
+            </select>
+            <p className="text-[10px] text-slate-400 italic text-right px-1">
+              {params.level === "Élite" ? "Compétition" : "Loisir / Dév."}
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-1.5">
+           <label className="text-sm font-medium text-slate-800 flex items-center justify-between">
+              <span className="flex items-center gap-2"><User className="w-4 h-4 text-[#FFD700]" /> Joueurs disponibles</span>
+              <span className="bg-yellow-100 text-yellow-800 font-bold px-2 py-0.5 rounded border border-yellow-200">{params.playerCount}</span>
+            </label>
+            <input 
+              type="range" 
+              min="6" 
+              max="30" 
+              step="1"
+              value={params.playerCount} 
+              onChange={handlePlayerCountChange}
+              className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-[#FFD700]"
+            />
+        </div>
+
+        {/* SECTION 2 : OBJET DE LA SÉANCE */}
+        <div className="space-y-3 pt-2">
+            <div className="flex bg-slate-100 p-1 rounded-lg">
+                <button
+                    type="button"
+                    onClick={() => handleModeChange('dominance')}
+                    className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-md text-sm font-medium transition-all ${params.focusMode === 'dominance' ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-200' : 'text-slate-500 hover:text-slate-700'}`}
+                >
+                    <Dumbbell className="w-4 h-4" /> Ateliers Qualité Physique
+                </button>
+                <button
+                    type="button"
+                    onClick={() => handleModeChange('problem')}
+                    className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-md text-sm font-medium transition-all ${params.focusMode === 'problem' ? 'bg-white text-yellow-700 shadow-sm ring-1 ring-yellow-200' : 'text-slate-500 hover:text-slate-700'}`}
+                >
+                    <Target className="w-4 h-4" /> Corriger un Déficit
+                </button>
+            </div>
+
+            {params.focusMode === 'dominance' ? (
+                <div className="space-y-1.5 animate-in fade-in slide-in-from-top-2 duration-300">
+                    <label className="text-sm font-medium text-slate-800 flex items-center gap-2">
+                        <Zap className="w-4 h-4 text-[#FFD700]" /> Qualité à Travailler ({params.category})
+                    </label>
+                    
+                    {/* MENU DÉROULANT CATÉGORISÉ */}
+                    <select
+                        name="dominance"
+                        value={params.dominance}
+                        onChange={handleChange}
+                        className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-yellow-400 text-slate-800 bg-white"
+                    >
+                        <optgroup label="★ PRIORITAIRE (Âge d'Or)">
+                            {priorities.priority.map(dom => (
+                                <option key={dom} value={dom}>★ {dom}</option>
+                            ))}
+                        </optgroup>
+                        
+                        {priorities.secondary.length > 0 && (
+                            <optgroup label="⚠ SECONDAIRE (Maintenance/Transition)">
+                                {priorities.secondary.map(dom => (
+                                    <option key={dom} value={dom}>{dom}</option>
+                                ))}
+                            </optgroup>
+                        )}
+
+                        {priorities.other.length > 0 && (
+                            <optgroup label="⬇ AUTRES (Moins adapté)">
+                                {priorities.other.map(dom => (
+                                    <option key={dom} value={dom}>{dom}</option>
+                                ))}
+                            </optgroup>
+                        )}
+                    </select>
+
+                    {/* Bulle d'info dynamique (Bleutée pour contraste ou Jaune pâle) */}
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 flex gap-2 items-start transition-all mt-2">
+                        <Info className="w-4 h-4 text-yellow-600 mt-0.5 flex-shrink-0" />
+                        <div>
+                            <span className="block text-xs font-bold text-yellow-800 uppercase mb-0.5">{params.dominance}</span>
+                            <p className="text-xs text-slate-600 leading-snug">
+                            {DOMINANCE_DEFINITIONS[params.dominance] || "Développement spécifique."}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            ) : (
+                <div className="space-y-1.5 animate-in fade-in slide-in-from-top-2 duration-300">
+                    <label className="text-sm font-medium text-slate-800 flex items-center gap-2">
+                        <Target className="w-4 h-4 text-[#FFD700]" /> Décrivez le besoin physique
+                    </label>
+                    <textarea
+                        name="problemDescription"
+                        value={params.problemDescription}
+                        onChange={handleChange}
+                        placeholder="Ex: Mes joueurs manquent de tonicité..."
+                        rows={4}
+                        className="w-full px-3 py-2 border border-yellow-200 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-yellow-400 text-slate-800 bg-white text-sm"
+                    />
+                </div>
+            )}
+        </div>
+
+        {/* SECTION 3 : PLANIFICATION */}
+        <div className="bg-slate-50 p-4 rounded-lg border border-slate-100">
+          <div className="grid grid-cols-2 gap-4">
+             <div className="space-y-1.5">
+                <label className="text-xs font-medium text-slate-500 flex items-center gap-1">
+                  <Clock className="w-3 h-3" /> Cycle
+                </label>
+                <select
+                  name="cycleMoment"
+                  value={params.cycleMoment}
+                  onChange={handleChange}
+                  className="w-full px-2 py-1.5 border border-slate-300 rounded text-sm bg-white focus:ring-yellow-400 focus:border-yellow-400"
+                >
+                  {CYCLES.map(cyc => <option key={cyc} value={cyc}>{cyc}</option>)}
+                </select>
+              </div>
+               <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-slate-500 flex items-center gap-1">
+                    <CalendarDays className="w-3 h-3" /> Semaine
+                  </label>
+                  <div className="flex items-center gap-2 bg-white border border-slate-300 rounded px-2 py-1.5">
+                     <span className="text-xs text-slate-400">Séance</span>
+                     <input
+                        type="number"
+                        name="sessionNumber"
+                        min="1"
+                        max={params.sessionsPerWeek}
+                        value={params.sessionNumber}
+                        onChange={handleNumberChange}
+                        className="w-8 text-center font-bold text-yellow-600 outline-none text-sm p-0 border-none focus:ring-0"
+                      />
+                      <span className="text-xs text-slate-400">/</span>
+                      <input
+                        type="number"
+                        name="sessionsPerWeek"
+                        min="1"
+                        max="7"
+                        value={params.sessionsPerWeek}
+                        onChange={handleNumberChange}
+                        className="w-8 text-center font-bold text-slate-800 outline-none text-sm p-0 border-none focus:ring-0"
+                      />
+                  </div>
+              </div>
+          </div>
+        </div>
+
+        {/* SECTION ADMIN */}
+        {isAdminMode && (
+          <div className="mt-4 p-4 bg-slate-100 rounded-lg border border-slate-200">
+            <div className="flex items-center gap-2 mb-3 text-slate-800 font-semibold border-b border-slate-200 pb-2">
+              <Settings className="w-4 h-4" /> Zone Admin
+            </div>
+            {!isAuthenticated ? (
+              <div className="space-y-3">
+                <p className="text-sm text-slate-600">Mot de passe requis.</p>
+                <div className="flex gap-2">
+                  <input 
+                    type="password" 
+                    value={passwordInput}
+                    onChange={(e) => setPasswordInput(e.target.value)}
+                    className="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-slate-800 focus:ring-yellow-400 focus:border-yellow-400"
+                    placeholder="......"
+                  />
+                  <button type="button" onClick={handleLogin} className="bg-slate-900 text-white px-4 py-2 rounded-lg hover:bg-slate-800"><Unlock className="w-4 h-4" /></button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3 animate-in fade-in duration-300">
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-slate-700 flex items-center gap-2"><BookOpen className="w-4 h-4 text-[#FFD700]" /> Auteurs / Références</label>
+                  <textarea name="references" value={params.references} onChange={handleChange} rows={4} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-slate-800 text-sm font-mono focus:ring-yellow-400 focus:border-yellow-400" />
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* BOUTON FINAL (JAUNE PHENIX) */}
+        <button
+          type="submit"
+          disabled={isLoading}
+          className={`w-full py-4 px-4 rounded-lg font-bold text-slate-900 shadow-md transition-all flex flex-col justify-center items-center gap-2 relative overflow-hidden
+            ${isLoading ? 'bg-slate-200 cursor-not-allowed' : 'bg-[#FFD700] hover:bg-[#EAC100] hover:shadow-lg active:scale-[0.98] border-b-4 border-[#C5A000]'}`}
+        >
+          {isLoading ? (
+            <div className="flex flex-col items-center animate-in fade-in duration-300">
+              <div className="flex items-center gap-2">
+                 <Loader2 className="animate-spin w-5 h-5 text-slate-500" /> 
+                 <span className="uppercase tracking-widest text-sm text-slate-500">IA en cours de réflexion</span>
+              </div>
+              <span className="text-xs text-slate-400 mt-1 font-normal opacity-90 transition-all duration-500 min-h-[1.5em]">{LOADING_MESSAGES[loadingStep]}</span>
+              <div className="absolute bottom-0 left-0 h-1 bg-yellow-600 transition-all duration-500 ease-linear" style={{ width: `${((loadingStep + 1) / LOADING_MESSAGES.length) * 100}%` }} />
+            </div>
+          ) : (
+            <span className="flex items-center gap-2">CRÉER LA SÉANCE</span>
+          )}
+        </button>
+      </form>
+    </div>
+  );
+};
+
+export default InputForm;
+</file>
+
+<file path=".gitignore">
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+</file>
+
+<file path="App.tsx">
+import React, { useState } from 'react';
+import Header from './components/Header';
+import InputForm from './components/InputForm';
+import SessionView from './components/SessionView';
+import { SessionParams, GeneratedSession } from './types';
+import { generateSessionContent } from './services/geminiService';
+import { Info, AlertTriangle, ShieldCheck } from 'lucide-react';
+
+const App: React.FC = () => {
+  const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
+  const [session, setSession] = useState<GeneratedSession | null>(null);
+
+  const handleGenerate = async (params: SessionParams) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await generateSessionContent(params);
+      setSession({
+        data,
+        params,
+        createdAt: Date.now(),
+      });
+    } catch (err: any) {
+      console.error(err);
+      setError("Erreur de génération. Vérifiez la clé API et réessayez.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex flex-col bg-slate-50">
+      <Header />
+      
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 h-full">
+          
+          {/* COLONNE GAUCHE : PARAMÈTRES */}
+          <div className="lg:col-span-4 space-y-6 no-print">
+            <InputForm onSubmit={handleGenerate} isLoading={loading} />
+            
+            {/* Message de Bienvenue (Couleur Jaune) */}
+            {!session && (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 flex gap-3 text-yellow-900 text-sm shadow-sm">
+                <Info className="w-5 h-5 flex-shrink-0 text-yellow-600" />
+                <p>
+                  Bienvenue sur <strong>Phenix</strong>. Configurez les paramètres ci-dessus pour générer une séance spécifique à votre méthodologie club.
+                </p>
+              </div>
+            )}
+
+            {/* Zone d'Erreur */}
+            {error && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex gap-3 text-red-700 text-sm animate-pulse">
+                <AlertTriangle className="w-5 h-5" />
+                <div>
+                  <strong>Erreur système :</strong> {error}
+                </div>
+              </div>
+            )}
+            
+            <div className="text-center text-xs text-slate-300">
+               Phenix v3.0 • Powered by Gemini Flash
+            </div>
+          </div>
+
+          {/* COLONNE DROITE : RÉSULTAT */}
+          <div className="lg:col-span-8 min-h-[500px]">
+            {session ? (
+              <SessionView session={session} />
+            ) : (
+              <div className="h-full flex flex-col items-center justify-center bg-white border border-dashed border-slate-300 rounded-xl p-12 text-center text-slate-400">
+                <div className="w-24 h-24 bg-yellow-50 rounded-full flex items-center justify-center mb-6">
+                  <ShieldCheck className="w-12 h-12 text-yellow-500" />
+                </div>
+                <h3 className="text-xl font-bold text-slate-800 mb-2">Espace de Travail</h3>
+                <p className="max-w-md text-slate-500">En attente de paramètres...</p>
+              </div>
+            )}
+          </div>
+
+        </div>
+      </main>
+    </div>
+  );
+};
+
+export default App;
+</file>
+
+<file path="index.html">
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Phenix - Assistant Coach</title>
+    
+    <!-- PWA Setup -->
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#172554" />
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Phynix">
+    <link rel="apple-touch-icon" href="https://phenixdesrivieres.com/wp-content/uploads/2023/09/Logo-Phenix-site-web.png">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+      body {
+        font-family: 'Inter', sans-serif;
+        background-color: #f3f4f6;
+        /* Prevent pull-to-refresh on mobile to feel more like an app */
+        overscroll-behavior-y: none;
+      }
+      /* Custom scrollbar for a sleeker look */
+      ::-webkit-scrollbar {
+        width: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: #f1f1f1; 
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #cbd5e1; 
+        border-radius: 4px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #94a3b8; 
+      }
+      
+      /* Markdown specific styles since we aren't using the typography plugin */
+      .markdown-content h2 {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #1e293b;
+        margin-top: 1.5rem;
+        margin-bottom: 0.75rem;
+        border-bottom: 2px solid #10b981;
+        padding-bottom: 0.25rem;
+      }
+      .markdown-content h3 {
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: #0f172a;
+        margin-top: 1.5rem;
+        margin-bottom: 0.5rem;
+      }
+      .markdown-content ul {
+        list-style-type: disc;
+        padding-left: 1.5rem;
+        margin-bottom: 1rem;
+      }
+      .markdown-content li {
+        margin-bottom: 0.25rem;
+        color: #334155;
+      }
+      .markdown-content p {
+        margin-bottom: 1rem;
+        line-height: 1.6;
+        color: #334155;
+      }
+      .markdown-content strong {
+        color: #0f172a;
+        font-weight: 600;
+      }
+      .markdown-content blockquote {
+        border-left: 4px solid #10b981;
+        padding-left: 1rem;
+        font-style: italic;
+        color: #4b5563;
+        background-color: #f0fdf4;
+        padding: 0.5rem 0.5rem 0.5rem 1rem;
+        border-radius: 0 0.375rem 0.375rem 0;
+        margin-bottom: 1rem;
+      }
+      .markdown-content hr {
+        margin: 2rem 0;
+        border-color: #e2e8f0;
+      }
+      
+      @media print {
+        .no-print {
+          display: none !important;
+        }
+        .print-only {
+          display: block !important;
+        }
+        body {
+          background-color: white;
+        }
+        .markdown-content {
+          font-size: 12pt;
+        }
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "@google/genai": "https://esm.sh/@google/genai@^1.33.0",
+    "lucide-react": "https://esm.sh/lucide-react@^0.561.0",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "react-markdown": "https://esm.sh/react-markdown@^10.1.0",
+    "react": "https://esm.sh/react@^19.2.3",
+    "react/": "https://esm.sh/react@^19.2.3/"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+  <body>
+    <div id="root"></div>
+  <script type="module" src="/index.tsx"></script>
+</body>
+</html>
+</file>
+
+<file path="index.tsx">
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import App from './App';
+
+const rootElement = document.getElementById('root');
+if (!rootElement) {
+  throw new Error("Could not find root element to mount to");
+}
+
+const root = ReactDOM.createRoot(rootElement);
+root.render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
+);
+</file>
+
+<file path="manifest.json">
+{
+  "name": "Phynix Coach",
+  "short_name": "Phynix",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#f3f4f6",
+  "theme_color": "#172554",
+  "description": "Générateur de séances Phénix des Rivières",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "https://phenixdesrivieres.com/wp-content/uploads/2023/09/Logo-Phenix-site-web.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://phenixdesrivieres.com/wp-content/uploads/2023/09/Logo-Phenix-site-web.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
+</file>
+
+<file path="metadata.json">
+{
+  "name": "Phynix",
+  "description": "Générateur de séances d'entraînement pour le club Phénix des Rivières.",
+  "requestFramePermissions": []
+}
+</file>
+
+<file path="package.json">
+{
+  "name": "phynix",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@google/genai": "^1.33.0",
+    "@google/generative-ai": "^0.24.1",
+    "dotenv": "^17.2.3",
+    "lucide-react": "^0.561.0",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3",
+    "react-markdown": "^10.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "typescript": "~5.8.2",
+    "vite": "^6.2.0"
+  }
+}
+</file>
+
+<file path="README.md">
+<div align="center">
+<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+</div>
+
+# Run and deploy your AI Studio app
+
+This contains everything you need to run your app locally.
+
+View your app in AI Studio: https://ai.studio/apps/drive/12zkVjED5xP8ltYXkjILo213Q2jQUuyoy
+
+## Run Locally
+
+**Prerequisites:**  Node.js
+
+
+1. Install dependencies:
+   `npm install`
+2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
+3. Run the app:
+   `npm run dev`
+</file>
+
+<file path="test-models.js">
+import { GoogleGenerativeAI } from "@google/generative-ai";
+
+async function listAvailableModels() {
+  // 👇 COLLEZ VOTRE CLÉ CI-DESSOUS (entre les guillemets)
+  const apiKey = "AIzaSyAcDJi2zRIAt3Nl-Ch1KB72UA2XL6j-w39w"; 
+
+  if (!apiKey || apiKey.includes("...")) {
+    console.error("❌ ERREUR: Vous devez coller votre clé API à la ligne 5 !");
+    return;
+  }
+
+  console.log("🔑 Clé utilisée :", apiKey.substring(0, 10) + "...");
+  console.log("📡 Test des modèles en cours...");
+
+  const genAI = new GoogleGenerativeAI(apiKey);
+  
+  const modelsToTest = [
+    "gemini-1.5-flash",
+    "gemini-1.5-flash-001",
+    "gemini-1.5-flash-8b",
+    "gemini-1.5-pro",
+    "gemini-1.5-pro-001",
+    "gemini-pro"
+  ];
+
+  for (const modelName of modelsToTest) {
+    try {
+      const model = genAI.getGenerativeModel({ model: modelName });
+      await model.generateContent({
+          contents: [{ role: "user", parts: [{ text: "Hi" }] }],
+          generationConfig: { maxOutputTokens: 1 }
+      });
+      console.log(`✅ ${modelName} : DISPONIBLE (Fonctionne !)`);
+    } catch (error) {
+      if (error.message && error.message.includes("404")) {
+         console.log(`❌ ${modelName} : Non trouvé (404)`);
+      } else {
+         console.log(`⚠️ ${modelName} : Erreur autre (${error.message.split(' ')[0]})`);
+      }
+    }
+  }
+}
+
+listAvailableModels();
+</file>
+
+<file path="tsconfig.json">
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "experimentalDecorators": true,
+    "useDefineForClassFields": false,
+    "module": "ESNext",
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "skipLibCheck": true,
+    "types": [
+      "node"
+    ],
+    "moduleResolution": "bundler",
+    "isolatedModules": true,
+    "moduleDetection": "force",
+    "allowJs": true,
+    "jsx": "react-jsx",
+    "paths": {
+      "@/*": [
+        "./*"
+      ]
+    },
+    "allowImportingTsExtensions": true,
+    "noEmit": true
+  }
+}
+</file>
+
+<file path="types.ts">
+export interface SessionParams {
+  category: string;
+  gender: string;
+  level: string;
+  focusMode: 'dominance' | 'problem'; // Nouveau : Choix entre dominance physique ou problème tactique
+  dominance: string; // Utilisé si focusMode === 'dominance'
+  problemDescription?: string; // Utilisé si focusMode === 'problem'
+  cycleMoment: string;
+  playerCount: number;
+  references: string;
+  sessionsPerWeek: number;
+  sessionNumber: number;
+}
+
+export interface Exercise {
+  title: string;
+  duration: string;
+  steps: string[]; 
+  coachingPoints: string[];
+  physiologicalGoal: string;
+  setup: string;
+  visualPrompt?: string; // Description optimisée pour la génération d'image
+}
+
+export interface SessionStructure {
+  warmup: Exercise;
+  mainPart: Exercise[];
+  conclusion: Exercise;
+}
+
+export interface GeneratedSession {
+  data: SessionStructure;
+  params: SessionParams;
+  createdAt: number;
+}
+</file>
+
+<file path="vite.config.ts">
+import path from 'path';
+import { defineConfig, loadEnv } from 'vite';
+import react from '@vitejs/plugin-react';
+
+export default defineConfig(({ mode }) => {
+    const env = loadEnv(mode, '.', '');
+    return {
+      server: {
+        port: 3000,
+        host: '0.0.0.0',
+      },
+      plugins: [react()],
+      define: {
+        'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
+        'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY)
+      },
+      resolve: {
+        alias: {
+          '@': path.resolve(__dirname, '.'),
+        }
+      }
+    };
+});
+</file>
+
+<file path="components/Header.tsx">
+import React from 'react';
+import { Settings } from 'lucide-react';
+
+// --- AJOUT IMPORTANT ---
+// On importe l'image. ".." signifie "remonter d'un dossier" pour aller dans src
+import logoImage from '../logo.png'; 
+
+const Header: React.FC = () => {
+  return (
+    <header className="bg-slate-900 text-white shadow-lg print:hidden">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex justify-between items-center h-20">
+          
+          {/* LOGO ET TITRE */}
+          <div className="flex items-center gap-4">
+            <div className="bg-white p-1 rounded-full h-12 w-12 flex items-center justify-center">
+              
+              {/* --- MODIFICATION ICI --- */}
+              {/* On utilise la variable importée (logoImage) au lieu du texte "/logo.png" */}
+              <img 
+                src={logoImage} 
+                alt="Logo Club" 
+                className="h-10 w-10 object-contain" 
+              />
+              
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight text-white">
+                PHENIX
+              </h1>
+              <p className="text-xs text-gray-300 font-medium uppercase tracking-wider">
+                Ton coach assistant en prépa physique
+              </p>
+            </div>
+          </div>
+
+          {/* Reste du code inchangé... */}
+          <div className="flex items-center gap-2">
+            <button className="p-2 text-gray-300 hover:text-white transition-colors">
+              <Settings className="w-6 h-6" />
+            </button>
+          </div>
+          
+        </div>
+      </div>
+    </header>
+  );
+};
+
+export default Header;
+</file>
+
+<file path="components/SessionView.tsx">
+import React from 'react';
+import { GeneratedSession } from '../types';
+import { Clock, CheckCircle, Info, Dumbbell, PlayCircle } from 'lucide-react';
+
+interface SessionViewProps {
+  session: GeneratedSession;
+}
+
+const SessionView: React.FC<SessionViewProps> = ({ session }) => {
+  // Sécurité absolue : Si les données sont incomplètes, on affiche un message calme au lieu de planter
+  if (!session || !session.data) {
+    return <div className="p-8 text-center text-slate-500">Données de séance indisponibles.</div>;
+  }
+
+  const { diagnosis, exercises } = session.data;
+
+  return (
+    <div className="space-y-8 animate-in fade-in duration-500 pb-12">
+      
+      {/* 1. EN-TÊTE DIAGNOSTIC */}
+      <div className="bg-white rounded-xl p-6 shadow-sm border-l-4 border-[#FFD700]">
+        <h3 className="text-xl font-bold text-slate-900 flex items-center gap-2 mb-2">
+          <Info className="w-5 h-5 text-[#FFD700]" />
+          {diagnosis?.title || "Analyse de la séance"}
+        </h3>
+        <p className="text-slate-600 mb-4 leading-relaxed">
+          {diagnosis?.explanation || "Aucune explication fournie."}
+        </p>
+        <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 text-sm text-slate-700 italic">
+          💡 <strong>Conseil Coach :</strong> {diagnosis?.advice || "Soyez attentif à l'intensité."}
+        </div>
+      </div>
+
+      {/* 2. LISTE DES EXERCICES */}
+      <div className="space-y-6">
+        <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+          <Dumbbell className="w-5 h-5 text-slate-400" />
+          Déroulé de la séance
+        </h3>
+
+        {/* Si la liste est vide ou n'existe pas, on affiche un message */}
+        {(!exercises || exercises.length === 0) ? (
+            <div className="p-8 bg-white rounded-lg border border-dashed border-slate-300 text-center text-slate-500">
+                Aucun exercice généré pour le moment.
+            </div>
+        ) : (
+            // Sinon on affiche la liste (le .map qui plantait est maintenant protégé)
+            exercises.map((exo: any, index: number) => (
+            <div key={index} className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition-shadow">
+                
+                {/* Header de l'exercice */}
+                <div className="bg-slate-900 px-4 py-3 flex justify-between items-center text-white">
+                    <div className="flex items-center gap-3">
+                        <span className="bg-[#FFD700] text-slate-900 font-bold w-6 h-6 flex items-center justify-center rounded-full text-xs">
+                        {index + 1}
+                        </span>
+                        <h4 className="font-bold text-lg">{exo.title}</h4>
+                    </div>
+                    <div className="flex items-center gap-4 text-xs font-medium uppercase tracking-wider text-slate-300">
+                        <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {exo.duration}</span>
+                        <span className={`px-2 py-0.5 rounded text-slate-900 font-bold ${
+                            exo.intensity === 'Haute' ? 'bg-red-400' : 
+                            exo.intensity === 'Moyenne' ? 'bg-yellow-400' : 'bg-green-400'
+                        }`}>
+                        {exo.intensity}
+                        </span>
+                    </div>
+                </div>
+
+                {/* Contenu */}
+                <div className="p-5 grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="md:col-span-2 space-y-4">
+                        <div>
+                            <p className="text-xs font-bold text-slate-400 uppercase mb-1">Consignes</p>
+                            <p className="text-slate-700 whitespace-pre-line">{exo.instructions}</p>
+                        </div>
+                        {exo.variations && (
+                            <div className="bg-blue-50 p-3 rounded-lg text-sm text-blue-800">
+                                <strong>Variantes :</strong> {Array.isArray(exo.variations) ? exo.variations.join(', ') : exo.variations}
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="md:col-span-1 space-y-4 border-l border-slate-100 pl-4">
+                        <div>
+                            <p className="text-xs font-bold text-slate-400 uppercase mb-1">Matériel</p>
+                            <p className="text-sm text-slate-600">{Array.isArray(exo.material) ? exo.material.join(', ') : exo.material}</p>
+                        </div>
+                        <div>
+                             <p className="text-xs font-bold text-slate-400 uppercase mb-1">Type</p>
+                             <span className="inline-block bg-slate-100 text-slate-600 px-2 py-1 rounded text-xs font-medium">
+                                {exo.type}
+                             </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            ))
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default SessionView;
+</file>
+
+<file path="services/geminiService.ts">
+import { GoogleGenerativeAI } from "@google/generative-ai";
+
+const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
+
+const getCleanKey = () => {
+  if (!API_KEY) return "";
+  return API_KEY.replace(/["';\s]/g, "");
+};
+
+// On garde l'alias qui fonctionne chez vous
+const MODEL_NAME = "gemini-flash-latest";
+
+const genAI = new GoogleGenerativeAI(getCleanKey());
+
+export const generateSessionContent = async (criteria: any) => {
+  try {
+    const cleanKey = getCleanKey();
+    if (!cleanKey) throw new Error("Clé API manquante. Vérifiez votre fichier .env");
+
+    const model = genAI.getGenerativeModel({ model: MODEL_NAME });
+
+    const prompt = `
+      Tu es un expert en préparation physique de football (Diplôme FFF).
+      
+      CONTEXTE :
+      - Catégorie : ${criteria.category} (${criteria.gender})
+      - Niveau : ${criteria.level}
+      - Effectif : ${criteria.playerCount} joueurs
+      - Type : ${criteria.focusMode === 'dominance' ? 'Développement Qualité' : 'Correction Déficit'}
+      - Objectif : "${criteria.focusMode === 'dominance' ? criteria.dominance : criteria.problemDescription}"
+
+      Génère une séance au format JSON strict avec cette structure exacte :
+      {
+        "diagnosis": {
+          "title": "Analyse",
+          "explanation": "Explication courte",
+          "advice": "Conseil coach"
+        },
+        "exercises": [
+          {
+            "title": "Nom de l'exercice",
+            "duration": "15 min",
+            "type": "Échauffement / Jeu / Athlétique",
+            "instructions": "Détails...",
+            "material": "Coupelles...",
+            "intensity": "Moyenne"
+          }
+        ]
+      }
+    `;
+
+    console.log(`📡 Envoi de la demande à ${MODEL_NAME}...`);
+
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    let text = response.text();
+
+    // Nettoyage JSON
+    text = text.replace(/```json/g, "").replace(/```/g, "").trim();
+    const start = text.indexOf('{');
+    const end = text.lastIndexOf('}');
+    if (start !== -1 && end !== -1) {
+      text = text.substring(start, end + 1);
+    }
+
+    const data = JSON.parse(text);
+
+    // --- FILET DE SÉCURITÉ ANTI-CRASH ---
+    // Si l'IA oublie les exercices, on met une liste vide pour ne pas faire planter le site
+    if (!data.exercises || !Array.isArray(data.exercises)) {
+        data.exercises = [];
+    }
+    if (!data.diagnosis) {
+        data.diagnosis = { title: "Info", explanation: "Analyse non disponible", advice: "Adaptez la séance." };
+    }
+
+    return data;
+
+  } catch (error: any) {
+    console.error("❌ Erreur Gemini :", error);
+    if (error.message?.includes("404")) throw new Error(`Modèle ${MODEL_NAME} introuvable.`);
+    if (error.message?.includes("429")) throw new Error("Quota dépassé. Réessayez plus tard.");
+    throw new Error("Erreur de génération. Vérifiez la console.");
+  }
+};
+
+export const generateExerciseImage = async (description: string) => {
+  return ""; 
+};
+</file>
+
+</files>
