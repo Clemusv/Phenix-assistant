@@ -1,252 +1,197 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { SessionParams } from '../types';
-import { Loader2, Zap, CalendarDays, Users, Trophy, Dumbbell, Activity, User, Hash, CheckCircle2 } from 'lucide-react';
+import { Settings, Zap, Calendar, Trophy, Activity, Users, Timer } from 'lucide-react';
 
 interface InputFormProps {
   onSubmit: (params: SessionParams) => void;
   isLoading: boolean;
 }
 
-// --- DONNÉES STATIQUES ---
-const CATEGORIES = ["U9", "U10", "U11", "U12", "U13", "U14", "U15", "U16", "U17", "U19", "Senior"];
-const GENDERS = ["M", "F"];
-const LEVELS = ["Élite", "D1", "D2", "D3"]; 
-const DAYS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
-
-type DayType = 'rest' | 'training' | 'match';
+type DayType = 'REST' | 'TRAINING' | 'MATCH';
 
 const InputForm: React.FC<InputFormProps> = ({ onSubmit, isLoading }) => {
-  
-  // Par défaut : Mardi/Jeudi entrainement, Samedi Match
-  const [schedule, setSchedule] = useState<DayType[]>([
-    'rest', 'training', 'rest', 'training', 'rest', 'match', 'rest'
-  ]);
-  
-  const [selectedDayIndex, setSelectedDayIndex] = useState<number | null>(1); // Mardi par défaut
+  // --- 1. PARAMÈTRES D'ÉQUIPE ---
+  const [category, setCategory] = useState("Seniors");
+  const [gender, setGender] = useState("M");
+  const [level, setLevel] = useState("D1"); // Valeur par défaut corrigée
+  const [playerCount, setPlayerCount] = useState(18);
 
-  const [params, setParams] = useState<SessionParams>({
-    category: 'Senior',
-    gender: 'M',
-    level: 'D1',
-    focusMode: 'dominance',
-    dominance: '',
-    problemDescription: '',
-    cycleMoment: '',
-    playerCount: 18,
-    references: '',
-    sessionsPerWeek: 2,
-    sessionNumber: 1
+  // --- 2. PLANNING HEBDOMADAIRE ---
+  const [schedule, setSchedule] = useState<Record<string, DayType>>({
+    "Lundi": "REST", "Mardi": "TRAINING", "Mercredi": "TRAINING",
+    "Jeudi": "REST", "Vendredi": "TRAINING", "Samedi": "MATCH", "Dimanche": "REST"
   });
+  const [selectedDay, setSelectedDay] = useState<string>("Mardi");
+  
+  // --- 3. COMMANDE ATHLÉTIQUE ---
+  const [problemDescription, setProblemDescription] = useState("");
 
-  // --- LOGIQUE DE CALCUL DU THÈME (PFC) ---
-  const calculateTheme = (dayIndex: number) => {
-    const matchIndex = schedule.indexOf('match');
-    if (matchIndex === -1) return { code: 'TEAMS', theme: 'Technique / Dév.' };
-
-    let gap = matchIndex - dayIndex;
-    
-    // Logique PDF PFC
-    if (gap === 1) return { code: "J-1", theme: "Vivacité / Réveil" };
-    if (gap === 2) return { code: "J-2", theme: "Vitesse Spécifique" };
-    if (gap === 3) return { code: "J-3", theme: "Puissance (PMA)" };
-    if (gap === 4) return { code: "J+3", theme: "Force Spécifique" };
-    if (gap >= 5) return { code: "J+2", theme: "Aérobie / Capacité" };
-    if (gap < 0) return { code: "J+2", theme: "Aérobie / Capacité" }; // Post match
-
-    return { code: "J+?", theme: "Adaptation" };
+  const toggleDay = (day: string) => {
+    const types: DayType[] = ['REST', 'TRAINING', 'MATCH'];
+    const current = schedule[day];
+    const next = types[(types.indexOf(current) + 1) % types.length];
+    setSchedule({ ...schedule, [day]: next });
   };
 
-  useEffect(() => {
-    if (selectedDayIndex === null || schedule[selectedDayIndex] !== 'training') return;
-    
-    const info = calculateTheme(selectedDayIndex);
+  const trainingCount = Object.values(schedule).filter(t => t === 'TRAINING').length;
 
-    setParams(p => ({
-      ...p,
-      cycleMoment: info.code,
-      dominance: info.theme,
-      focusMode: 'dominance'
-    }));
-
-  }, [schedule, selectedDayIndex]);
-
-  // --- ACTIONS ---
-  const toggleDay = (index: number) => {
-    const current = schedule[index];
-    const next = current === 'rest' ? 'training' : current === 'training' ? 'match' : 'rest';
+  const getCycleMoment = (day: string) => {
+    const days = Object.keys(schedule);
+    const dayIdx = days.indexOf(day);
+    const matchIdx = days.indexOf("Samedi");
+    const diff = matchIdx - dayIdx;
     
-    const newSchedule = [...schedule];
-    if (next === 'match') {
-       newSchedule.forEach((d, i) => { if (d === 'match') newSchedule[i] = 'rest'; });
-    }
-    newSchedule[index] = next;
-    setSchedule(newSchedule);
-    
-    // Si on supprime la séance sélectionnée, on désélectionne
-    if (index === selectedDayIndex && next !== 'training') {
-        setSelectedDayIndex(null);
-    }
+    if (diff === 1) return "J-1";
+    if (diff === 2) return "J-2";
+    if (diff === 3) return "J-3";
+    if (diff > 3 || diff < 0) return "J+2"; 
+    return "J+2";
   };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    setParams(prev => ({ ...prev, [e.target.name]: e.target.value }));
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (selectedDayIndex !== null) onSubmit(params);
+  const handleSubmit = () => {
+    onSubmit({
+      category,
+      gender,
+      level,        
+      playerCount,
+      cycleMoment: getCycleMoment(selectedDay),
+      dominance: 'Auto', 
+      problemDescription,
+      focusMode: 'dominance',
+      weeklyFrequency: trainingCount
+    });
   };
 
   return (
-    <div className="bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden">
+    <div className="bg-white rounded-xl shadow-lg p-6 space-y-8">
       
-      <div className="bg-slate-900 px-6 py-4 border-b border-[#FFD700] flex justify-between items-center">
-        <h2 className="text-white font-bold text-lg flex items-center gap-2">
-          <CalendarDays className="text-[#FFD700] w-5 h-5" /> 
-          Paramètres Séance
-        </h2>
-      </div>
-      
-      <form onSubmit={handleSubmit} className="p-6 space-y-8">
+      {/* SECTION 1 : PROFIL ATHLÉTIQUE */}
+      <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
+        <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2 mb-3">
+            <Activity className="w-4 h-4" /> Profil Athlétique Groupe
+        </label>
         
-        {/* 1. ÉQUIPE */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1"><Users className="w-3 h-3" /> Catégorie</label>
-                <select name="category" value={params.category} onChange={handleChange} className="w-full px-3 py-2 border border-slate-300 rounded-lg font-bold text-slate-800 bg-white">
-                    {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+            {/* CATÉGORIE */}
+            <div>
+                <span className="text-[10px] font-bold text-slate-400 block mb-1">CATÉGORIE</span>
+                <select 
+                    value={category} onChange={(e) => setCategory(e.target.value)}
+                    className="w-full p-2 bg-white border border-slate-200 rounded-lg font-bold text-sm text-slate-700 focus:border-[#FFD700] outline-none"
+                >
+                    {["U9", "U10", "U11", "U12", "U13", "U14", "U15", "U16", "U17", "U18", "U19", "Seniors"].map(c => (
+                        <option key={c} value={c}>{c}</option>
+                    ))}
                 </select>
             </div>
-            <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1"><User className="w-3 h-3" /> Genre</label>
-                <select name="gender" value={params.gender} onChange={handleChange} className="w-full px-3 py-2 border border-slate-300 rounded-lg font-bold text-slate-800 bg-white">
-                    {GENDERS.map(g => <option key={g} value={g}>{g}</option>)}
+
+            {/* GENRE */}
+            <div>
+                <span className="text-[10px] font-bold text-slate-400 block mb-1">GENRE</span>
+                <div className="flex bg-white rounded-lg border border-slate-200 p-1">
+                    <button onClick={() => setGender("M")} className={`flex-1 py-1 rounded text-xs font-bold ${gender === "M" ? "bg-blue-100 text-blue-700" : "text-slate-400"}`}>H</button>
+                    <button onClick={() => setGender("F")} className={`flex-1 py-1 rounded text-xs font-bold ${gender === "F" ? "bg-pink-100 text-pink-700" : "text-slate-400"}`}>F</button>
+                </div>
+            </div>
+
+            {/* NIVEAU (MODIFIÉ SELON VOTRE DEMANDE) */}
+            <div>
+                <span className="text-[10px] font-bold text-slate-400 block mb-1">NIVEAU</span>
+                <select 
+                    value={level} onChange={(e) => setLevel(e.target.value)}
+                    className="w-full p-2 bg-white border border-slate-200 rounded-lg font-bold text-sm text-slate-700 focus:border-[#FFD700] outline-none"
+                >
+                    {["Élite", "D1", "D2", "D3"].map(l => (
+                        <option key={l} value={l}>{l}</option>
+                    ))}
                 </select>
             </div>
-            <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1"><Activity className="w-3 h-3" /> Niveau</label>
-                <select name="level" value={params.level} onChange={handleChange} className="w-full px-3 py-2 border border-slate-300 rounded-lg font-bold text-slate-800 bg-white">
-                    {LEVELS.map(l => <option key={l} value={l}>{l}</option>)}
-                </select>
-            </div>
-            <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1"><Hash className="w-3 h-3" /> Effectif</label>
-                <input type="number" name="playerCount" value={params.playerCount} onChange={handleChange} className="w-full px-3 py-2 border border-slate-300 rounded-lg font-bold text-slate-800 bg-white" min="1" />
+
+            {/* EFFECTIF */}
+            <div>
+                <span className="text-[10px] font-bold text-slate-400 block mb-1">EFFECTIF ({playerCount})</span>
+                <input 
+                    type="range" min="8" max="30" 
+                    value={playerCount} onChange={(e) => setPlayerCount(parseInt(e.target.value))}
+                    className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-[#FFD700]" 
+                />
             </div>
         </div>
+      </div>
 
-        <hr className="border-slate-100" />
+      <hr className="border-slate-100" />
 
-        {/* 2. CONFIGURATION SEMAINE (Grille) */}
-        <div className="space-y-2">
-            <div className="flex justify-between items-end">
-                <label className="text-sm font-bold text-slate-800 flex items-center gap-2">
-                    <CalendarDays className="w-4 h-4 text-[#FFD700]" /> Configuration Semaine
-                </label>
-                <span className="text-[10px] text-slate-400">Cliquez pour modifier (Repos / Séance / Match)</span>
-            </div>
-            
-            <div className="grid grid-cols-7 gap-1 h-16">
-                {schedule.map((type, index) => (
-                    <div 
-                        key={index}
-                        onClick={() => toggleDay(index)}
+      {/* SECTION 2 : PLANNING */}
+      <div>
+        <div className="flex justify-between items-end mb-4">
+            <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2">
+                <Calendar className="w-4 h-4" /> Charge Hebdomadaire
+            </label>
+            <span className={`text-xs font-bold px-2 py-1 rounded ${trainingCount <= 2 ? 'bg-orange-100 text-orange-700' : 'bg-green-100 text-green-700'}`}>
+                {trainingCount} Séances / sem.
+            </span>
+        </div>
+        
+        <div className="grid grid-cols-7 gap-1 md:gap-2 mb-2">
+            {Object.entries(schedule).map(([day, type]) => (
+                <div key={day} className="flex flex-col gap-2">
+                    <button
+                        onClick={() => toggleDay(day)}
                         className={`
-                            rounded cursor-pointer border flex flex-col items-center justify-center transition-all
-                            ${type === 'rest' ? 'border-dashed border-slate-200 bg-slate-50 opacity-60' : ''}
-                            ${type === 'training' ? 'border-blue-200 bg-blue-50 text-blue-700 font-bold' : ''}
-                            ${type === 'match' ? 'border-red-200 bg-red-50 text-red-700 font-bold' : ''}
+                            h-12 md:h-14 rounded-lg flex flex-col items-center justify-center text-[9px] md:text-[10px] font-bold transition-all border-2
+                            ${type === 'REST' ? 'bg-slate-50 border-slate-200 text-slate-400' : ''}
+                            ${type === 'TRAINING' ? 'bg-emerald-50 border-emerald-500 text-emerald-700' : ''}
+                            ${type === 'MATCH' ? 'bg-[#FFD700] border-yellow-500 text-slate-900' : ''}
                         `}
                     >
-                        <span className="text-[10px] uppercase mb-0.5">{DAYS[index].substring(0, 3)}</span>
-                        {type === 'training' && <Dumbbell className="w-4 h-4" />}
-                        {type === 'match' && <Trophy className="w-4 h-4" />}
-                    </div>
-                ))}
-            </div>
-        </div>
-
-        {/* 3. SÉLECTION CLAIRE DE LA SÉANCE */}
-        <div className="space-y-3 bg-slate-50 p-4 rounded-xl border border-slate-200">
-            <label className="text-sm font-bold text-slate-800 flex items-center gap-2">
-                <Zap className="w-4 h-4 text-[#FFD700]" /> Quelle séance préparer ?
-            </label>
-            
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                {schedule.map((type, index) => {
-                    if (type !== 'training') return null;
-                    const info = calculateTheme(index);
-                    const isSelected = selectedDayIndex === index;
-                    
-                    return (
+                        <span>{day.substring(0, 3)}</span>
+                        {type === 'MATCH' && <Trophy className="w-3 h-3 mt-1" />}
+                        {type === 'TRAINING' && <Zap className="w-3 h-3 mt-1" />}
+                    </button>
+                    {type === 'TRAINING' && (
                         <button
-                            key={index}
-                            type="button"
-                            onClick={() => setSelectedDayIndex(index)}
-                            className={`p-3 rounded-lg border-2 text-left transition-all relative
-                                ${isSelected 
-                                    ? 'border-blue-600 bg-white shadow-md ring-1 ring-blue-600' 
-                                    : 'border-slate-200 bg-white hover:border-blue-300'
-                                }`}
+                            onClick={() => setSelectedDay(day)}
+                            className={`w-full py-1 rounded-full text-[8px] font-black uppercase transition-all ${
+                                selectedDay === day ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
+                            }`}
                         >
-                            <div className="flex justify-between items-start mb-1">
-                                <span className={`font-bold ${isSelected ? 'text-blue-700' : 'text-slate-700'}`}>
-                                    {DAYS[index]}
-                                </span>
-                                {isSelected && <CheckCircle2 className="w-4 h-4 text-blue-600" />}
-                            </div>
-                            <div className="text-xs font-black text-slate-900 bg-yellow-100 inline-block px-1.5 py-0.5 rounded">
-                                {info.code}
-                            </div>
-                            <div className="text-[10px] text-slate-500 mt-1 truncate">
-                                {info.theme}
-                            </div>
+                            {selectedDay === day ? 'CIBLE' : 'CHOISIR'}
                         </button>
-                    );
-                })}
-            </div>
-            {schedule.filter(t => t === 'training').length === 0 && (
-                <p className="text-xs text-slate-400 italic text-center">Ajoutez des séances dans le calendrier ci-dessus.</p>
-            )}
+                    )}
+                </div>
+            ))}
+        </div>
+      </div>
+
+      {/* SECTION 3 : COMMANDE PHYSIQUE */}
+      <div className="space-y-4">
+        <div>
+            <label className="text-xs font-bold text-slate-500 uppercase mb-2 flex items-center gap-2">
+                <Timer className="w-4 h-4" /> Objectif Athlétique
+            </label>
+            <textarea 
+                className="w-full p-4 bg-slate-50 border-2 border-slate-100 rounded-xl focus:border-[#FFD700] focus:bg-white outline-none text-sm transition-all"
+                rows={2}
+                placeholder="Ex: Mes joueurs manquent d'explosivité sur les 5 premiers mètres..."
+                value={problemDescription}
+                onChange={(e) => setProblemDescription(e.target.value)}
+            />
         </div>
 
-        {/* 4. BOUTON FINAL */}
-        {selectedDayIndex !== null && (
-             <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-                <button
-                    type="submit"
-                    disabled={isLoading}
-                    className="w-full bg-[#FFD700] hover:bg-[#EAC100] text-slate-900 p-4 rounded-xl font-black shadow-lg transition-transform active:scale-[0.98] flex items-center justify-center gap-3"
-                >
-                    {isLoading ? <Loader2 className="animate-spin w-5 h-5" /> : <Zap className="w-5 h-5" />}
-                    <span>GÉNÉRER LA SÉANCE DU {DAYS[selectedDayIndex].toUpperCase()}</span>
-                </button>
-                <p className="text-center text-xs text-slate-400 mt-2">
-                    Thème automatique : <strong>{params.dominance}</strong>
-                </p>
-             </div>
-        )}
-
-        <div className="text-center pt-2">
-            <button 
-                type="button"
-                onClick={() => setParams(p => ({ ...p, focusMode: p.focusMode === 'problem' ? 'dominance' : 'problem' }))}
-                className="text-xs text-slate-400 underline hover:text-slate-600"
-            >
-                {params.focusMode === 'problem' ? "Mode Automatique (Activé)" : "Non, je veux corriger un problème spécifique"}
-            </button>
-            {params.focusMode === 'problem' && (
-                <textarea
-                    name="problemDescription"
-                    value={params.problemDescription}
-                    onChange={(e) => setParams(p => ({...p, problemDescription: e.target.value}))}
-                    placeholder="Décrivez le problème..."
-                    className="w-full mt-2 p-3 border rounded text-sm bg-red-50 focus:outline-none focus:border-red-300"
-                />
+        <button 
+            onClick={handleSubmit}
+            disabled={isLoading || !selectedDay}
+            className="w-full py-4 bg-[#FFD700] hover:bg-[#ffc800] text-slate-900 font-black rounded-xl shadow-lg hover:shadow-xl transition-all transform active:scale-[0.98] flex justify-center items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+            {isLoading ? (
+                <span className="animate-pulse">Calcul de la charge...</span>
+            ) : (
+                <>
+                    <Zap className="w-5 h-5" /> GÉNÉRER LE PANEL PHYSIQUE ({selectedDay})
+                </>
             )}
-        </div>
-
-      </form>
+        </button>
+      </div>
     </div>
   );
 };
